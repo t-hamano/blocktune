@@ -16,6 +16,7 @@ import {
 	CONVERSATION_TOKEN_LIMIT,
 	getConversationTokens,
 	type AssistantChatMessage,
+	type Conversation,
 } from '../ai/conversation';
 import type { AiChat } from '../ai/use-ai-chat';
 import { isInDocument } from '../editor/document-root';
@@ -172,6 +173,40 @@ function useSelectionStatus( documentRoot: string | undefined ) {
 	);
 }
 
+/**
+ * Keeps the latest message in view while the answer streams in, but only
+ * while the messages are scrolled to the bottom, so the chat stays still
+ * while the user reads above.
+ *
+ * @param conversation The conversation shown in the messages.
+ * @return The ref and scroll handler for the messages, and a function that
+ *         makes the chat follow the next answer.
+ */
+function useFollowLatest( conversation: Conversation ) {
+	const ref = useRef< HTMLDivElement >( null );
+	const isAtBottomRef = useRef( true );
+
+	// This runs before the browser paints, so a scroll event never sees new
+	// text that the chat has not followed yet.
+	useLayoutEffect( () => {
+		const element = ref.current;
+		if ( element && isAtBottomRef.current ) {
+			element.scrollTop = element.scrollHeight;
+		}
+	}, [ conversation ] );
+
+	const onScroll = ( event: React.UIEvent< HTMLDivElement > ) => {
+		const { scrollTop, scrollHeight, clientHeight } = event.currentTarget;
+		isAtBottomRef.current = scrollHeight - clientHeight - scrollTop <= 1;
+	};
+
+	const follow = () => {
+		isAtBottomRef.current = true;
+	};
+
+	return { ref, onScroll, follow };
+}
+
 type Props = {
 	chat: AiChat;
 	/**
@@ -193,39 +228,21 @@ type Props = {
 
 export function Chat( { chat, isAvailable, documentRoot, draft, onDraftChange: setDraft }: Props ) {
 	const { conversation, isResponding, sendMessage, stopAnswer, startNewConversation } = chat;
-	const messagesRef = useRef< HTMLDivElement >( null );
-	// Whether the messages are scrolled to the bottom. The chat follows the
-	// answer only then, so it stays still while the user reads above.
-	const isAtBottomRef = useRef( true );
+	const { ref: messagesRef, onScroll, follow: followAnswer } = useFollowLatest( conversation );
 	const selection = useSelectionStatus( documentRoot );
 	// The content of a template part or a synced pattern is edited in its
 	// own editor, so a selection inside one cannot be sent.
 	const isSelectionOutside = !! selection && ! selection.isInDocument;
-
-	// Keep the latest message in view while the answer streams in. This runs
-	// before the browser paints, so a scroll event never sees new text that
-	// the chat has not followed yet.
-	useLayoutEffect( () => {
-		const element = messagesRef.current;
-		if ( element && isAtBottomRef.current ) {
-			element.scrollTop = element.scrollHeight;
-		}
-	}, [ conversation ] );
 
 	const isLong =
 		! isResponding && getConversationTokens( conversation.messages ) > CONVERSATION_TOKEN_LIMIT;
 
 	const canSend = isAvailable && !! draft.trim() && ! isResponding && ! isSelectionOutside;
 
-	const onScroll = ( event: React.UIEvent< HTMLDivElement > ) => {
-		const { scrollTop, scrollHeight, clientHeight } = event.currentTarget;
-		isAtBottomRef.current = scrollHeight - clientHeight - scrollTop <= 1;
-	};
-
 	const submit = () => {
 		if ( canSend ) {
 			// The user wants to see the answer to their message.
-			isAtBottomRef.current = true;
+			followAnswer();
 			sendMessage( draft );
 			setDraft( '' );
 		}

@@ -24,22 +24,14 @@ type Props = {
 };
 
 /**
- * Lets the user choose the provider and model that answer, from the
- * providers that have an API key. The choice is saved for the user.
+ * Loads the providers that have an API key, with their models.
  *
- * @param props         The props.
- * @param props.onClose Called when the user goes back to the chat.
+ * @return The providers, or `null` while they load, and whether they could
+ *         not be loaded.
  */
-export function ModelSettings( { onClose }: Props ) {
+function useProviderOptions() {
 	const [ providers, setProviders ] = useState< ProviderOption[] | null >( null );
 	const [ hasError, setHasError ] = useState( false );
-	const { set } = useDispatch( preferencesStore );
-	// Preferences are kept in the user's meta, so the choice follows the
-	// user to other posts and browsers. `null` means automatic.
-	const choice = useSelect(
-		( select ) => select( preferencesStore ).get( 'blocktune', 'model' ) as ModelChoice | null,
-		[]
-	);
 
 	useEffect( () => {
 		let isCurrent = true;
@@ -51,6 +43,26 @@ export function ModelSettings( { onClose }: Props ) {
 			isCurrent = false;
 		};
 	}, [] );
+
+	return { providers, hasError };
+}
+
+/**
+ * Lets the user choose the provider and model that answer, from the
+ * providers that have an API key. The choice is saved for the user.
+ *
+ * @param props         The props.
+ * @param props.onClose Called when the user goes back to the chat.
+ */
+export function ModelSettings( { onClose }: Props ) {
+	const { providers, hasError } = useProviderOptions();
+	const { set } = useDispatch( preferencesStore );
+	// Preferences are kept in the user's meta, so the choice follows the
+	// user to other posts and browsers. `null` means automatic.
+	const choice = useSelect(
+		( select ) => select( preferencesStore ).get( 'blocktune', 'model' ) as ModelChoice | null,
+		[]
+	);
 
 	const setModelChoice = ( value: ModelChoice | null ) => set( 'blocktune', 'model', value );
 
