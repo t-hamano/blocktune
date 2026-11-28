@@ -118,7 +118,12 @@ export function ModelSettings( { onClose }: Props ) {
 						set(
 							'blocktune',
 							'model',
-							next ? { provider: next.id, model: next.models[ 0 ] ?? '' } : null
+							next
+								? {
+										provider: next.id,
+										model: next.models[ 0 ] ?? '',
+									}
+								: null
 						);
 					} }
 				/>
@@ -129,7 +134,10 @@ export function ModelSettings( { onClose }: Props ) {
 						value={ modelItems.find( ( item ) => item.value === choice.model ) ?? null }
 						onValueChange={ ( item: Item | null ) => {
 							if ( item?.value ) {
-								set( 'blocktune', 'model', { provider: provider.id, model: item.value } );
+								set( 'blocktune', 'model', {
+									provider: provider.id,
+									model: item.value,
+								} );
 							}
 						} }
 					/>
