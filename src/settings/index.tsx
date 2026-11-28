@@ -52,8 +52,6 @@ export function ModelSettings( { onClose }: Props ) {
 		};
 	}, [] );
 
-	const setModelChoice = ( value: ModelChoice | null ) => set( 'blocktune', 'model', value );
-
 	const automatic: Item = {
 		label: __( 'Automatic', 'blocktune' ),
 		value: null,
@@ -117,7 +115,11 @@ export function ModelSettings( { onClose }: Props ) {
 					}
 					onValueChange={ ( item: Item | null ) => {
 						const next = providers.find( ( option ) => option.id === item?.value );
-						setModelChoice( next ? { provider: next.id, model: next.models[ 0 ] ?? '' } : null );
+						set(
+							'blocktune',
+							'model',
+							next ? { provider: next.id, model: next.models[ 0 ] ?? '' } : null
+						);
 					} }
 				/>
 				{ provider && choice && (
@@ -127,7 +129,7 @@ export function ModelSettings( { onClose }: Props ) {
 						value={ modelItems.find( ( item ) => item.value === choice.model ) ?? null }
 						onValueChange={ ( item: Item | null ) => {
 							if ( item?.value ) {
-								setModelChoice( { provider: provider.id, model: item.value } );
+								set( 'blocktune', 'model', { provider: provider.id, model: item.value } );
 							}
 						} }
 					/>
