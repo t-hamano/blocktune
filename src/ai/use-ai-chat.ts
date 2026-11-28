@@ -39,6 +39,45 @@ export type AiChat = {
 };
 
 /**
+ * Joins text that arrives in many small pieces, and passes it on once per
+ * frame, so the chat does not render for each piece.
+ *
+ * Other changes to the conversation are made after committing the buffered
+ * text, so they come after the text that arrived before them.
+ *
+ * @param onCommit Receives the joined text.
+ * @return Functions that add text, commit the buffered text now, and drop it.
+ */
+function useFrameBufferedText( onCommit: ( text: string ) => void ) {
+	const pendingTextRef = useRef( '' );
+	const frameRef = useRef< number | null >( null );
+	const discard = useCallback( () => {
+		if ( frameRef.current !== null ) {
+			cancelAnimationFrame( frameRef.current );
+			frameRef.current = null;
+		}
+		pendingTextRef.current = '';
+	}, [] );
+	const commit = useCallback( () => {
+		const text = pendingTextRef.current;
+		discard();
+		if ( text ) {
+			onCommit( text );
+		}
+	}, [ discard, onCommit ] );
+	const add = useCallback(
+		( text: string ) => {
+			pendingTextRef.current += text;
+			if ( frameRef.current === null ) {
+				frameRef.current = requestAnimationFrame( commit );
+			}
+		},
+		[ commit ]
+	);
+	return { add, commit, discard };
+}
+
+/**
  * Runs a conversation with the AI assistant. The selection is captured when
  * a message is sent, and the model's edits are applied to it as they arrive.
  *
@@ -62,35 +101,15 @@ export function useAiChat( { ai, createTarget }: UseAiChatArgs ): AiChat {
 	const controllerRef = useRef< AbortController | null >( null );
 	// Reads the document when the answer being streamed ends.
 	const readDocumentRef = useRef< ( () => string | undefined ) | null >( null );
-	// The text of an answer arrives in many small pieces. They are joined and
-	// added once per frame, so the chat does not render for each piece.
-	const pendingTextRef = useRef( '' );
-	const frameRef = useRef< number | null >( null );
-	const discardBufferedText = useCallback( () => {
-		if ( frameRef.current !== null ) {
-			cancelAnimationFrame( frameRef.current );
-			frameRef.current = null;
-		}
-		pendingTextRef.current = '';
-	}, [] );
-	// Other changes are made after committing the buffered text, so they come
-	// after the text that arrived before them.
-	const commitBufferedText = useCallback( () => {
-		const text = pendingTextRef.current;
-		discardBufferedText();
-		if ( text ) {
-			updateConversation( { type: 'APPEND_TEXT', text } );
-		}
-	}, [ discardBufferedText ] );
-	const addTextToBuffer = useCallback(
-		( text: string ) => {
-			pendingTextRef.current += text;
-			if ( frameRef.current === null ) {
-				frameRef.current = requestAnimationFrame( commitBufferedText );
-			}
-		},
-		[ commitBufferedText ]
+	const appendText = useCallback(
+		( text: string ) => updateConversation( { type: 'APPEND_TEXT', text } ),
+		[]
 	);
+	const {
+		add: addTextToBuffer,
+		commit: commitBufferedText,
+		discard: discardBufferedText,
+	} = useFrameBufferedText( appendText );
 
 	const sendMessage = useCallback(
 		( text: string ) => {
