@@ -7,7 +7,7 @@ import { __ } from '@wordpress/i18n';
  * Internal dependencies
  */
 import type { AiChatRequest, AiEdit, AiEditResult } from '..';
-import { checkRequestLimit, endToolRequest, needsReply, trackRequestText } from './answer-text';
+import { endToolRequest, trackRequestText } from './answer-text';
 import { runRead } from './read-tools';
 
 /**
@@ -16,6 +16,14 @@ import { runRead } from './read-tools';
  * not exist also stops.
  */
 const MAX_RETRIES = 3;
+
+/**
+ * The most requests one answer may send to the model. An answer usually
+ * takes one to three: the edits, a retry after a failed edit, and a read of
+ * the document. The limit stops a model that keeps calling tools from
+ * running up the cost.
+ */
+const MAX_REQUESTS = 10;
 
 /**
  * The tool the model edits the document with, in the shape of Anthropic's
@@ -218,7 +226,12 @@ function runTool(
 	} else {
 		outcome = { text: DROPPED, failed: false };
 	}
-	return { outcome, replied: needsReply( result ) };
+	// The model sees the result when the edit failed, was dropped, or had its
+	// markup fixed, so it knows the blocks differ from what it wrote.
+	return {
+		outcome,
+		replied: result.status !== 'applied' || !! result.autoFix,
+	};
 }
 
 /**
@@ -286,7 +299,14 @@ export async function runToolLoop< Answer, Result >(
 		if ( failures > MAX_RETRIES ) {
 			throw new Error( __( 'The edit could not be made.', 'blocktune' ) );
 		}
-		checkRequestLimit( ++requests );
+		if ( ++requests >= MAX_REQUESTS ) {
+			throw new Error(
+				__(
+					'The answer was stopped because the AI took too many steps. The edits made so far are kept.',
+					'blocktune'
+				)
+			);
+		}
 		append( answer, results );
 	}
 }
