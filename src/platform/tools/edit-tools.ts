@@ -228,7 +228,10 @@ function runTool(
 	}
 	// The model sees the result when the edit failed, was dropped, or had its
 	// markup fixed, so it knows the blocks differ from what it wrote.
-	return { outcome, replied: result.status !== 'applied' || !! result.autoFix };
+	return {
+		outcome,
+		replied: result.status !== 'applied' || !! result.autoFix,
+	};
 }
 
 /**
